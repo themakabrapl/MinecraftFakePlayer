@@ -16,10 +16,12 @@ int main()
 	unsigned short port = 25565;
 	const char* serverAddress = "127.0.0.1\n";
 
-	while (serverAddress[serverAddressLength] != '\n')
-	{
-		serverAddressLength++;
-	}
+	serverAddressLength = ndt::chrlen(serverAddress);
+
+	/* This Part of the Program was made while learning Winsock
+		and 100 % of this code was written by Nicholas Day on https ://www.youtube.com/c/NicholasDayPhD
+
+	Link to the amazeing tutorial that he made : https://www.youtube.com/watch?v=gntyAFoZp-E */
 
 	//Setting up a Client Socket
 	SOCKET cSocket;
@@ -67,6 +69,8 @@ int main()
 	}
 	std::cout << "Connect() is OK" << std::endl;
 
+	/* End of Nicholas's Code*/
+
 	//Setting up variables used in communication
 	int byteCount = 0;
 	int packetSize = 0;
@@ -78,15 +82,12 @@ int main()
 
 	//Makeing a Handshake packet and sending it
 	{
-		ndt::Handshake Handshake;
-		
-		Handshake.protVer.Write(758);
-		Handshake.nState.Write(2);
+		ndt::Handshake Handshake(758, 2);
 		PacketLayout.PacketID.Write(packetsSent);
 
-		PacketLayout.dataLenght = Handshake.protVer.length + Handshake.nState.length + sizeof(unsigned short) + serverAddressLength;
+		PacketLayout.dataLength = Handshake.protVer.length + Handshake.nState.length + sizeof(unsigned short) + serverAddressLength;
 
-		packetSize = PacketLayout.CalcLength() - 1;
+		packetSize = PacketLayout.CalcLength();
 		packetBuffer = (char*)malloc(packetSize);
 		if (packetBuffer == nullptr)
 		{
@@ -97,43 +98,58 @@ int main()
 		memset(packetBuffer, 0, packetSize);
 		Handshake.DataFill(packetBuffer, PacketLayout, serverAddress, serverAddressLength, port);
 
+		//Sending the Packet and checking if It was sent Correctly
 		byteCount = send(cSocket, packetBuffer, packetSize, 0);
-		if (byteCount > 0)
-		{
-			std::printf("Message Sent: %s \n", packetBuffer);
-			std::printf("Bytes Sent: %d \n", byteCount);
-			packetsSent++;
-		}
-		else
+		if (!(byteCount > 0))
 		{
 			std::cout << "Sending Packet was a failure" << std::endl;
 			std::system("pause");
 			WSACleanup();
 			return 0;
 		}
+		//If Visual Studio is Set to Debug than show the packet and it's size in bytes
+		#ifdef _DEBUG
+		printf("Message Sent: %s \n", packetBuffer);
+		printf("Bytes Sent: %d \n", byteCount);
+		#endif
+
+		packetsSent++;
+
+		//If Visual Studio is Set to Debug than check for any error messages from the sever
+		#ifdef _DEBUG
+		char buffer2[200];
+		byteCount = recv(cSocket, buffer2, 50, 0);
+		if (byteCount > 0)
+		{
+			printf("Message Recived: %s \n", buffer2);
+			printf("Bytes Recived: %d \n", byteCount);
+		}
+		#endif
+
 	}
 
 	PacketLayout.Empty();
 
+	//Makeing a Login Start packet and sending it
 	{
 		bool premium = false;
-		std::string nickname = "themakabrapl2";
+		std::string nickname = "test\n";
 		ndt::LoginStartP LoginP(nickname, premium);
 		PacketLayout.PacketID.Write(packetsSent);
 
-		//Smallest size that LoginStartP Packet can have
-		PacketLayout.dataLenght += 16 + 1;
+		//Smallest size that LoginStartP Packet can have (Nickname Length + 2 Bools)
+		PacketLayout.dataLength += ndt::chrlen(&nickname[0]) + 2;
 
-		//If Has UUID adds aditional 17 bytes of size
+		//If Has UUID adds aditional 16 bytes of size
 		if (LoginP.HUUID)
 		{
-			PacketLayout.dataLenght += 1 + 16;
+			PacketLayout.dataLength += 16;
 		}
 
 		//If useing premium adds even more bytes
 		if (premium)
 		{
-			PacketLayout.dataLenght = 8 + LoginP.pKeyLength.length + LoginP.pKeyLength.Read() +
+			PacketLayout.dataLength = 8 + LoginP.pKeyLength.length + LoginP.pKeyLength.Read() +
 				LoginP.SignatureLength.length + LoginP.SignatureLength.Read();
 		}
 
@@ -148,20 +164,36 @@ int main()
 		memset(packetBuffer, 0, packetSize);
 		LoginP.DataFill(premium, packetBuffer, PacketLayout);
 
+		//Sending the Packet and checking if It was sent Correctly
 		byteCount = send(cSocket, packetBuffer, packetSize, 0);
-		if (byteCount > 0)
-		{
-			std::cout.write(packetBuffer, packetSize);
-			std::printf("Message Sent: %s \n", packetBuffer);
-			std::printf("Bytes Sent: %d \n", byteCount);
-			packetsSent++;
-		}
-		else
+		if (!(byteCount > 0))
 		{
 			std::cout << "Sending Packet was a failure" << std::endl;
 			std::system("pause");
 			WSACleanup();
 			return 0;
+		}
+		//If Visual Studio is Set to Debug than show the Packet and it's Size in bytes
+		#ifdef _DEBUG
+		printf("Message Sent: %s \n", packetBuffer);
+		printf("Bytes Sent: %d \n", byteCount);
+		#endif
+
+		packetsSent++;
+
+		//Recive Login Success Packet from the server
+		bool n_Recived = true;
+		while (n_Recived)
+		{
+			char buffer2[1024];
+			byteCount = recv(cSocket, buffer2, 1024, 0);
+			if (byteCount > 0)
+			{
+				printf("Message Recived: %s \n", buffer2);
+				printf("Bytes Recived: %d \n", byteCount);
+
+				n_Recived = false;
+			}
 		}
 	}
 	WSACleanup();

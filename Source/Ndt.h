@@ -3,10 +3,22 @@
 #include <vector>
 #include <bitset>
 
+/* More Information about Minecraft Packets can be Found Here:
+	https://wiki.vg/Protocol#Login_Start */
+
 //Namespace containing new required datatypes and functions
 namespace ndt
 {
 	//New Functions
+	int chrlen(const char* array)
+	{
+		int i = 0;
+		while (array[i] != '\n')
+		{
+			i++;
+		}
+		return i;
+	}
 
 	//New Datatypes
 	class VarInt
@@ -24,6 +36,7 @@ namespace ndt
 		int CONTINUE_BIT_MASK = 0x80;
 	};
 
+	//Reads the Content of a VarInt
 	int VarInt::Read()
 	{
 		int value = 0;
@@ -48,6 +61,7 @@ namespace ndt
 		return value;
 	};
 
+	//Writes to a VarInt
 	void VarInt::Write(int value)
 	{
 		unsigned int cValue = (unsigned int)value;
@@ -69,13 +83,16 @@ namespace ndt
 			cValue >>= 7;
 		}
 
-		int bytes_size = bytes.size();
+		length = bytes.size();
 
-		length = bytes_size;
-		data = (char*)malloc(bytes_size);
+		data = (char*)malloc(length);
+		if (data == nullptr)
+		{
+			std::cout << "Not enough memory to Write to a VarInt" << std::endl;
+		}
 
 		int i = 0;
-		while (i != bytes_size)
+		while (i != length)
 		{
 			data[i] = bytes.at(i);
 			i++;
@@ -95,16 +112,17 @@ namespace ndt
 		ndt::VarInt Length;
 		ndt::VarInt PacketID;
 
-		int dataLenght = 0;
+		int dataLength = 0;
 		int packetDataOffset = 0;
 
 		void Empty();
 		int CalcLength();
 	};
 
+	//Resets the variables that need to be reseted (QOL)
 	void Packet::Empty()
 	{
-		dataLenght = 0;
+		dataLength = 0;
 		packetDataOffset = 0;
 	}
 
@@ -112,23 +130,26 @@ namespace ndt
 	int Packet::CalcLength()
 	{
 		int value = 0;
-		Length.Write(PacketID.length + dataLenght);
+		Length.Write(PacketID.length + dataLength);
 
 		value += Length.length;
 		value += PacketID.length;
-		value += dataLenght;
+		value += dataLength;
 
 		return value;
 	}
-
+	//A Handshake Packet
 	struct Handshake
 	{
 		ndt::VarInt protVer;
 		ndt::VarInt nState;
 
 		void DataFill(char* packetBuffer, Packet &PacketLayout,const char* serverAddres, int serverAddressLength, short port);
+
+		Handshake(int protocolNumber, int nextState);
 	};
 
+	//Fills a Buffer with Variables in a specific for Handshake Packet Layout
 	void Handshake::DataFill(char* packetBuffer, Packet& PacketLayout, const char* serverAddress, int serverAddressLength, short port)
 	{
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &PacketLayout.Length.data[0], PacketLayout.Length.length);
@@ -145,10 +166,17 @@ namespace ndt
 		PacketLayout.packetDataOffset += nState.length;
 	}
 
-	//Defines LoginStart Packet
+	//Constructor of Handshake Packet (Takes in Protocol Number and Next State Value)
+	Handshake::Handshake(int protocolNumber, int nextState)
+	{
+		protVer.Write(protocolNumber);
+		nState.Write(nextState);
+	}
+
+	//A LoginStart Packet
 	struct LoginStartP
 	{
-		char Name[16];
+		char Name[17];
 		bool SigData = false;
 
 		long TimeStamp;
@@ -166,14 +194,15 @@ namespace ndt
 		~LoginStartP();
 	};
 
+	//Fills a Buffer with Variables in a specific for Login Start Packet Layout
 	void LoginStartP::DataFill(bool premium, char* packetBuffer, Packet &PacketLayout)
 	{
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &PacketLayout.Length.data[0], PacketLayout.Length.length);
 		PacketLayout.packetDataOffset += PacketLayout.Length.length;
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &PacketLayout.PacketID.data[0], PacketLayout.PacketID.length);
 		PacketLayout.packetDataOffset += PacketLayout.PacketID.length;
-		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &Name[0], 16);
-		PacketLayout.packetDataOffset += 16;
+		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &Name[0], ndt::chrlen(Name));
+		PacketLayout.packetDataOffset += ndt::chrlen(Name);
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &SigData, 1);
 		PacketLayout.packetDataOffset += 1;
 
@@ -204,6 +233,7 @@ namespace ndt
 		}
 	}
 
+	//Constructor of Login Start Packet (Takes in Nickname of a Player and is It a Premium Account)
 	LoginStartP::LoginStartP(std::string nickname, bool Premium)
 	{
 		memset(Name, 0, 16);
