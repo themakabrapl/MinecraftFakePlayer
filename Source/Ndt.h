@@ -144,14 +144,15 @@ namespace ndt
 		ndt::VarInt protVer;
 		ndt::VarInt nState;
 
-		void DataFill(char* packetBuffer, Packet &PacketLayout,const char* serverAddres, int serverAddressLength, short port);
+		void DataFill(char* packetBuffer, Packet &PacketLayout,std::string* serverAddres, short port);
 
 		Handshake(int protocolNumber, int nextState);
 	};
 
 	//Fills a Buffer with Variables in a specific for Handshake Packet Layout
-	void Handshake::DataFill(char* packetBuffer, Packet& PacketLayout, const char* serverAddress, int serverAddressLength, short port)
+	void Handshake::DataFill(char* packetBuffer, Packet& PacketLayout, std::string* serverAddress, short port)
 	{
+		int serverAddressLength = serverAddress->length();
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &PacketLayout.Length.data[0], PacketLayout.Length.length);
 		PacketLayout.packetDataOffset += PacketLayout.Length.length;
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &PacketLayout.PacketID.data[0], PacketLayout.PacketID.length);

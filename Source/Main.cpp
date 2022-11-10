@@ -12,16 +12,13 @@
 int main()
 {
 	int wsaerr;
-	int serverAddressLength = 0;
 	unsigned short port = 25565;
-	const char* serverAddress = "127.0.0.1\n";
-
-	serverAddressLength = ndt::chrlen(serverAddress);
+	std::string serverAddress = "127.0.0.1";
 
 	/* This Part of the Program was made while learning Winsock
 		and 100 % of this code was written by Nicholas Day on https ://www.youtube.com/c/NicholasDayPhD
 
-	Link to the amazeing tutorial that he made : https://www.youtube.com/watch?v=gntyAFoZp-E */
+	Link to the amazing tutorial that he made : https://www.youtube.com/watch?v=gntyAFoZp-E */
 
 	//Setting up a Client Socket
 	SOCKET cSocket;
@@ -85,9 +82,9 @@ int main()
 		ndt::Handshake Handshake(758, 2);
 		PacketLayout.PacketID.Write(packetsSent);
 
-		PacketLayout.dataLength = Handshake.protVer.length + Handshake.nState.length + sizeof(unsigned short) + serverAddressLength;
+		PacketLayout.dataLength = Handshake.protVer.length + Handshake.nState.length + sizeof(unsigned short) + serverAddress.length();
 
-		packetSize = PacketLayout.CalcLength();
+		packetSize = PacketLayout.CalcLength() - 1;
 		packetBuffer = (char*)malloc(packetSize);
 		if (packetBuffer == nullptr)
 		{
@@ -96,7 +93,7 @@ int main()
 			return -1;
 		}
 		memset(packetBuffer, 0, packetSize);
-		Handshake.DataFill(packetBuffer, PacketLayout, serverAddress, serverAddressLength, port);
+		Handshake.DataFill(packetBuffer, PacketLayout, &serverAddress, port);
 
 		//Sending the Packet and checking if It was sent Correctly
 		byteCount = send(cSocket, packetBuffer, packetSize, 0);
