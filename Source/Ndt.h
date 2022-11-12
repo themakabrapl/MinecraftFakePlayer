@@ -159,10 +159,12 @@ namespace ndt
 		PacketLayout.packetDataOffset += PacketLayout.PacketID.length;
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &protVer.data[0], protVer.length);
 		PacketLayout.packetDataOffset += protVer.length;
-		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &serverAddress[0], serverAddressLength);
+		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &(*serverAddress)[0], serverAddressLength);
 		PacketLayout.packetDataOffset += serverAddressLength;
-		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &port, 2);
-		PacketLayout.packetDataOffset += sizeof(port);
+		memcpy(&packetBuffer[PacketLayout.packetDataOffset], ((char*)(&port)) + 1, 1);
+		PacketLayout.packetDataOffset += 1;
+		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &port, 1);
+		PacketLayout.packetDataOffset += 1;
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &nState.data[0], nState.length);
 		PacketLayout.packetDataOffset += nState.length;
 	}
@@ -198,10 +200,13 @@ namespace ndt
 	//Fills a Buffer with Variables in a specific for Login Start Packet Layout
 	void LoginStartP::DataFill(bool premium, char* packetBuffer, Packet &PacketLayout)
 	{
+		byte nameLength = ndt::chrlen(Name);
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &PacketLayout.Length.data[0], PacketLayout.Length.length);
 		PacketLayout.packetDataOffset += PacketLayout.Length.length;
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &PacketLayout.PacketID.data[0], PacketLayout.PacketID.length);
 		PacketLayout.packetDataOffset += PacketLayout.PacketID.length;
+		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &nameLength, 1);
+		PacketLayout.packetDataOffset += 1;
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &Name[0], ndt::chrlen(Name));
 		PacketLayout.packetDataOffset += ndt::chrlen(Name);
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &SigData, 1);

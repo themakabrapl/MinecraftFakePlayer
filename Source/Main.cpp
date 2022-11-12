@@ -13,7 +13,8 @@ int main()
 {
 	int wsaerr;
 	unsigned short port = 25565;
-	std::string serverAddress = "127.0.0.1";
+	std::string serverAddress = " 127.0.0.1";
+	serverAddress[0] = (char)9;
 
 	/* This Part of the Program was made while learning Winsock
 		and 100 % of this code was written by Nicholas Day on https ://www.youtube.com/c/NicholasDayPhD
@@ -84,7 +85,7 @@ int main()
 
 		PacketLayout.dataLength = Handshake.protVer.length + Handshake.nState.length + sizeof(unsigned short) + serverAddress.length();
 
-		packetSize = PacketLayout.CalcLength() - 1;
+		packetSize = PacketLayout.CalcLength();
 		packetBuffer = (char*)malloc(packetSize);
 		if (packetBuffer == nullptr)
 		{
@@ -109,20 +110,6 @@ int main()
 		printf("Message Sent: %s \n", packetBuffer);
 		printf("Bytes Sent: %d \n", byteCount);
 		#endif
-
-		packetsSent++;
-
-		//If Visual Studio is Set to Debug than check for any error messages from the sever
-		#ifdef _DEBUG
-		char buffer2[200];
-		byteCount = recv(cSocket, buffer2, 50, 0);
-		if (byteCount > 0)
-		{
-			printf("Message Recived: %s \n", buffer2);
-			printf("Bytes Recived: %d \n", byteCount);
-		}
-		#endif
-
 	}
 
 	PacketLayout.Empty();
@@ -130,12 +117,12 @@ int main()
 	//Makeing a Login Start packet and sending it
 	{
 		bool premium = false;
-		std::string nickname = "test\n";
+		std::string nickname = "themakabrapl2\n";
 		ndt::LoginStartP LoginP(nickname, premium);
 		PacketLayout.PacketID.Write(packetsSent);
 
-		//Smallest size that LoginStartP Packet can have (Nickname Length + 2 Bools)
-		PacketLayout.dataLength += ndt::chrlen(&nickname[0]) + 2;
+		//Smallest size that LoginStartP Packet can have (Nickname Length + 1 Byte)
+		PacketLayout.dataLength += ndt::chrlen(&nickname[0]) + 1;
 
 		//If Has UUID adds aditional 16 bytes of size
 		if (LoginP.HUUID)
