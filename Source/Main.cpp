@@ -7,11 +7,28 @@
 
 #include <rpc.h>
 
-#include "Ndt.h"
+#include "zlib/zlib.h"
 
-int main()
+#include "UFunctions.h"
+#include "RDatatypes.h"
+
+void respondToPacket(rdt::Packet& rPacket, rdt::GameWorldInformation& GWI, int& SIZE_BEFORE_COMPESSION)
 {
-	int wsaerr;
+	if (rPacket.PacketID.Read() == 3)
+	{
+		rdt::VarInt tmp;
+		tmp.Assign(rPacket.data);
+		SIZE_BEFORE_COMPESSION = tmp.Read();
+	}
+
+	if (rPacket.PacketID.Read() == 1)
+	{
+
+	}
+}
+
+int main(int argc, char** argv)
+{
 	unsigned short port = 25565;
 	std::string serverAddress = " 127.0.0.1";
 	serverAddress[0] = (char)9;
@@ -31,12 +48,13 @@ int main()
 	WORD wVersionRequested = MAKEWORD(2, 2);
 
 	//Initializing Winsock 
-	wsaerr = WSAStartup(wVersionRequested, &wsaData);
+	int wsaerr = WSAStartup(wVersionRequested, &wsaData);
 
+	//Checking If Initialization was done Correctly
 	if (wsaerr != 0)
 	{
 		std::cout << "The Winsock dll not found" << std::endl;
-		return 0;
+		return EXIT_FAILURE;
 	}
 	std::cout << "The Winsock dll found" << std::endl;
 	std::cout << "The Status:" << wsaData.szSystemStatus << std::endl;
@@ -45,11 +63,12 @@ int main()
 	cSocket = INVALID_SOCKET;
 	cSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
+	//Checking If Socket was made Correctly
 	if (cSocket == INVALID_SOCKET)
 	{
 		std::cout << "Error at Socket(): " << WSAGetLastError() << std::endl;
 		WSACleanup();
-		return 0;
+		return EXIT_FAILURE;
 	}
 	std::cout << "Socket is OK" << std::endl;
 
@@ -59,55 +78,54 @@ int main()
 	InetPton(AF_INET, _T("127.0.0.1"), &addrpo.sin_addr.s_addr);
 	addrpo.sin_port = htons(port);
 
+	//Connecting to Server and Checking If Connection was Successful
 	if (connect(cSocket, (SOCKADDR*)&addrpo, sizeof(addrpo)) == SOCKET_ERROR)
 	{
 		std::cout << "Connect() failed: " << WSAGetLastError() << std::endl;
 		WSACleanup();
-		return 0;
+		return EXIT_FAILURE;
 	}
 	std::cout << "Connect() is OK" << std::endl;
 
 	/* End of Nicholas's Code*/
 
 	//Setting up variables used in communication
-	int byteCount = 0;
-	int packetSize = 0;
-	int packetsSent = 0;
-	int portSize = sizeof(port);
-	char* packetBuffer = nullptr;
+	unsigned int byteCount = 0;
+	unsigned int packetSize = 0;
 
-	ndt::Packet PacketLayout;
+	rdt::Packet PacketLayout;
 
 	//Makeing a Handshake packet and sending it
 	{
-		ndt::Handshake Handshake(758, 2);
-		PacketLayout.PacketID.Write(packetsSent);
+		rdt::Handshake Handshake(758, 2);
+		PacketLayout.PacketID.Write(Handshake.PacketID);
 
 		PacketLayout.dataLength = Handshake.protVer.length + Handshake.nState.length + sizeof(unsigned short) + serverAddress.length();
 
+		//Calculateing the size of a Packet and useing it to create a Buffer for It than Populateing It
 		packetSize = PacketLayout.CalcLength();
-		packetBuffer = (char*)malloc(packetSize);
-		if (packetBuffer == nullptr)
+		PacketLayout.packetBuffer = (char*)malloc(packetSize);
+		if (PacketLayout.packetBuffer == nullptr)
 		{
 			std::cout << "Not enough memory to allocate a packet" << std::endl;
 			std::system("pause");
-			return -1;
+			return EXIT_FAILURE;
 		}
-		memset(packetBuffer, 0, packetSize);
-		Handshake.DataFill(packetBuffer, PacketLayout, &serverAddress, port);
+		memset(PacketLayout.packetBuffer, 0, packetSize);
+		Handshake.DataFill(PacketLayout.packetBuffer, PacketLayout, &serverAddress, port);
 
 		//Sending the Packet and checking if It was sent Correctly
-		byteCount = send(cSocket, packetBuffer, packetSize, 0);
+		byteCount = send(cSocket, PacketLayout.packetBuffer, packetSize, 0);
 		if (!(byteCount > 0))
 		{
 			std::cout << "Sending Packet was a failure" << std::endl;
 			std::system("pause");
 			WSACleanup();
-			return 0;
+			return EXIT_FAILURE;
 		}
 		//If Visual Studio is Set to Debug than show the packet and it's size in bytes
 		#ifdef _DEBUG
-		printf("Message Sent: %s \n", packetBuffer);
+		printf("Message Sent: %s \n", PacketLayout.packetBuffer);
 		printf("Bytes Sent: %d \n", byteCount);
 		#endif
 	}
@@ -118,11 +136,11 @@ int main()
 	{
 		bool premium = false;
 		std::string nickname = "themakabrapl2\n";
-		ndt::LoginStartP LoginP(nickname, premium);
-		PacketLayout.PacketID.Write(packetsSent);
+		rdt::LoginStartP LoginP(nickname, premium);
+		PacketLayout.PacketID.Write(LoginP.PacketID);
 
 		//Smallest size that LoginStartP Packet can have (Nickname Length + 1 Byte)
-		PacketLayout.dataLength += ndt::chrlen(&nickname[0]) + 1;
+		PacketLayout.dataLength += chrlen(&nickname[0]) + 1;
 
 		//If Has UUID adds aditional 16 bytes of size
 		if (LoginP.HUUID)
@@ -137,47 +155,131 @@ int main()
 				LoginP.SignatureLength.length + LoginP.SignatureLength.Read();
 		}
 
+		//Calculateing the size of a Packet and useing it to create a Buffer for It than Populateing It
 		packetSize = PacketLayout.CalcLength();
-		packetBuffer = (char*)realloc(packetBuffer, packetSize);
-		if (packetBuffer == nullptr)
+		PacketLayout.packetBuffer = (char*)realloc(PacketLayout.packetBuffer, packetSize);
+		if (PacketLayout.packetBuffer == nullptr)
 		{
 			std::cout << "Not enough memory to allocate a packet" << std::endl;
 			std::system("pause");
-			return -1;
+			return EXIT_FAILURE;
 		}
-		memset(packetBuffer, 0, packetSize);
-		LoginP.DataFill(premium, packetBuffer, PacketLayout);
+		memset(PacketLayout.packetBuffer, 0, packetSize);
+		LoginP.DataFill(premium, PacketLayout.packetBuffer, PacketLayout);
 
 		//Sending the Packet and checking if It was sent Correctly
-		byteCount = send(cSocket, packetBuffer, packetSize, 0);
+		byteCount = send(cSocket, PacketLayout.packetBuffer, packetSize, 0);
 		if (!(byteCount > 0))
 		{
 			std::cout << "Sending Packet was a failure" << std::endl;
 			std::system("pause");
 			WSACleanup();
-			return 0;
+			return EXIT_FAILURE;
 		}
 		//If Visual Studio is Set to Debug than show the Packet and it's Size in bytes
 		#ifdef _DEBUG
-		printf("Message Sent: %s \n", packetBuffer);
+		printf("Message Sent: %s \n", PacketLayout.packetBuffer);
 		printf("Bytes Sent: %d \n", byteCount);
 		#endif
+	}
 
-		packetsSent++;
+	{
+		//Variables for Reciveing Packets
+		unsigned int pID = NULL;
+		char* reciveBuffer = nullptr;
+		char* uncompressedDataAddress = nullptr;
 
-		//Recive Login Success Packet from the server
-		bool n_Recived = true;
-		while (n_Recived)
+		rdt::VarInt uVInt;
+
+		reciveBuffer = (char*)malloc(2097151);
+		if (reciveBuffer == nullptr)
 		{
-			char buffer2[1024];
-			byteCount = recv(cSocket, buffer2, 1024, 0);
-			if (byteCount > 0)
-			{
-				printf("Message Recived: %s \n", buffer2);
-				printf("Bytes Recived: %d \n", byteCount);
+			std::cout << "Not enough memory to be reciveing a Packets" << std::endl;
+			std::system("pause");
+			return EXIT_FAILURE;
+		}
+		memset(reciveBuffer, 0, 2097151);
 
-				n_Recived = false;
+		//Flags used in Communication
+		int SIZE_BEFORE_COMPESSION = -1;
+
+		//
+		rdt::GameWorldInformation GWI;
+
+		//Loop for Reciveing Packets and responding to Them
+		while (true)
+		{
+			rdt::Packet rPacket;
+
+			//Recive a Packet/Maybe Packets idk. and check for Errors 
+			byteCount = recv(cSocket, reciveBuffer, 2097151, 0);
+			if (byteCount == SOCKET_ERROR)
+			{
+				std::cout << "Recv() Failed: " << WSAGetLastError() << std::endl;
+				continue;
 			}
+
+			//Get Length of the received Packet and If it's 0 go back and recieve another Packet
+			rPacket.Length.Assign(reciveBuffer);
+			if (rPacket.Length.length <= 0)
+			{
+				continue;
+			}
+
+			//If Flag SIZE_BEFORE_COMPESSION > 0 decompress the packet
+			if (SIZE_BEFORE_COMPESSION > 0)
+			{
+				rPacket.DataLength.Assign(reciveBuffer + rPacket.Length.length);
+				uncompressedDataAddress = (char*)malloc(rPacket.DataLength.Read());
+				if (uncompressedDataAddress == nullptr)
+				{
+					std::cout << "Not enough memory to be decompress a Packet" << std::endl;
+					std::system("pause");
+					return EXIT_FAILURE;
+				}
+
+				char* dataAddress = (rPacket.DataLength.data + rPacket.DataLength.length);
+				unsigned long sourceLength = rPacket.Length.Read() - rPacket.DataLength.length;
+
+				unsigned long uncompressedDataSize = rPacket.DataLength.Read();
+				if (uncompressedDataSize > 0)
+				{
+					int decompression = uncompress2((Bytef*)uncompressedDataAddress, (uLongf*)&uncompressedDataSize, (Bytef*)dataAddress, (uLong*)&sourceLength);
+					if (decompression != Z_OK)
+					{
+						if (decompression == Z_MEM_ERROR)
+						{
+							std::cout << "Couldn't decompress the Packet because there was not enought Memory" << std::endl;
+							std::system("pause");
+							return EXIT_FAILURE;
+						}
+
+						if (decompression == Z_BUF_ERROR)
+						{
+							std::cout << "Couldn't decompress the Packet because there was not enought memory in the Buffer" << std::endl;
+							std::system("pause");
+							return EXIT_FAILURE;
+						}
+
+						if (decompression == Z_DATA_ERROR)
+						{
+							std::cout << "Data of the Packet was corrupted or incomplete" << std::endl;
+							std::system("pause");
+							return EXIT_FAILURE;
+						}
+					}
+				}
+
+				rPacket.PacketID.Assign(uncompressedDataAddress);
+				rPacket.data = (uncompressedDataAddress + rPacket.PacketID.length);
+				respondToPacket(rPacket, GWI, SIZE_BEFORE_COMPESSION);
+			}
+
+			rPacket.PacketID.Assign(rPacket.packetBuffer + rPacket.Length.length);
+			rPacket.data = (uncompressedDataAddress + rPacket.PacketID.length);
+			respondToPacket(rPacket, GWI, SIZE_BEFORE_COMPESSION);
+
+			memset(reciveBuffer, 0, byteCount);
 		}
 	}
 	WSACleanup();

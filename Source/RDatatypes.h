@@ -3,32 +3,26 @@
 #include <vector>
 #include <bitset>
 
+#include "UFunctions.h"
+
+/* This File contains required Datatypes */
+
 /* More Information about Minecraft Packets can be Found Here:
 	https://wiki.vg/Protocol#Login_Start */
 
 //Namespace containing new required datatypes and functions
-namespace ndt
+namespace rdt
 {
-	//New Functions
-	int chrlen(const char* array)
-	{
-		int i = 0;
-		while (array[i] != '\n')
-		{
-			i++;
-		}
-		return i;
-	}
-
 	//New Datatypes
 	class VarInt
 	{
 	public:
 		char* data = nullptr;
-		int length = 0;
+		unsigned long length = 0;
 
 		int Read();
-		void Write(int value);
+		void Write(size_t value);
+		void Assign(char* ptr);
 
 		~VarInt();
 	private:
@@ -58,11 +52,12 @@ namespace ndt
 			if (position >= 32)
 				std::cout << "VarInt is too Big" << std::endl;
 		}
+		length = position / 7;
 		return value;
 	};
 
 	//Writes to a VarInt
-	void VarInt::Write(int value)
+	void VarInt::Write(size_t value)
 	{
 		unsigned int cValue = (unsigned int)value;
 		bool state = true;
@@ -97,6 +92,12 @@ namespace ndt
 			data[i] = bytes.at(i);
 			i++;
 		}
+	}
+
+	void VarInt::Assign(char* ptr)
+	{
+		data = ptr;
+		Read();
 	};
 
 	VarInt::~VarInt()
@@ -105,18 +106,21 @@ namespace ndt
 	};
 
 
-	//Defines layout for a Packet
+	//A Packet Class
 	class Packet
 	{
 	public:
-		ndt::VarInt Length;
-		ndt::VarInt PacketID;
+		rdt::VarInt Length;
+		rdt::VarInt DataLength;
+		rdt::VarInt PacketID;
 
-		int dataLength = 0;
-		int packetDataOffset = 0;
+		unsigned int dataLength = 0;
+		unsigned int packetDataOffset = 0;
+		char* packetBuffer = nullptr;
+		char* data = nullptr;
 
 		void Empty();
-		int CalcLength();
+		unsigned int CalcLength();
 	};
 
 	//Resets the variables that need to be reseted (QOL)
@@ -127,9 +131,9 @@ namespace ndt
 	}
 
 	//Calculates the Length of a packet in Bytes
-	int Packet::CalcLength()
+	unsigned int Packet::CalcLength()
 	{
-		int value = 0;
+		unsigned int value = 0;
 		Length.Write(PacketID.length + dataLength);
 
 		value += Length.length;
@@ -138,11 +142,13 @@ namespace ndt
 
 		return value;
 	}
+
 	//A Handshake Packet
 	struct Handshake
 	{
-		ndt::VarInt protVer;
-		ndt::VarInt nState;
+		unsigned int PacketID = 0;
+		rdt::VarInt protVer;
+		rdt::VarInt nState;
 
 		void DataFill(char* packetBuffer, Packet &PacketLayout,std::string* serverAddres, short port);
 
@@ -152,7 +158,7 @@ namespace ndt
 	//Fills a Buffer with Variables in a specific for Handshake Packet Layout
 	void Handshake::DataFill(char* packetBuffer, Packet& PacketLayout, std::string* serverAddress, short port)
 	{
-		int serverAddressLength = serverAddress->length();
+		unsigned int serverAddressLength = serverAddress->length();
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &PacketLayout.Length.data[0], PacketLayout.Length.length);
 		PacketLayout.packetDataOffset += PacketLayout.Length.length;
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &PacketLayout.PacketID.data[0], PacketLayout.PacketID.length);
@@ -179,6 +185,7 @@ namespace ndt
 	//A LoginStart Packet
 	struct LoginStartP
 	{
+		int PacketID = 0;
 		char Name[17];
 		bool SigData = false;
 
@@ -200,15 +207,15 @@ namespace ndt
 	//Fills a Buffer with Variables in a specific for Login Start Packet Layout
 	void LoginStartP::DataFill(bool premium, char* packetBuffer, Packet &PacketLayout)
 	{
-		byte nameLength = ndt::chrlen(Name);
+		byte nameLength = chrlen(Name);
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &PacketLayout.Length.data[0], PacketLayout.Length.length);
 		PacketLayout.packetDataOffset += PacketLayout.Length.length;
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &PacketLayout.PacketID.data[0], PacketLayout.PacketID.length);
 		PacketLayout.packetDataOffset += PacketLayout.PacketID.length;
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &nameLength, 1);
 		PacketLayout.packetDataOffset += 1;
-		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &Name[0], ndt::chrlen(Name));
-		PacketLayout.packetDataOffset += ndt::chrlen(Name);
+		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &Name[0], chrlen(Name));
+		PacketLayout.packetDataOffset += chrlen(Name);
 		memcpy(&packetBuffer[PacketLayout.packetDataOffset], &SigData, 1);
 		PacketLayout.packetDataOffset += 1;
 
@@ -256,4 +263,9 @@ namespace ndt
 		if (Signature != nullptr)
 			free(Signature);
 	}
+
+	struct GameWorldInformation
+	{
+
+	};
 }
