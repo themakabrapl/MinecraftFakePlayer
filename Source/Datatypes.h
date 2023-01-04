@@ -3,7 +3,7 @@
 #include <vector>
 #include <bitset>
 
-#include "UFunctions.h"
+#include "Functions.h"
 
 /* This File contains required Datatypes */
 
@@ -18,6 +18,7 @@ namespace rdt
 	{
 	public:
 		char* data = nullptr;
+		bool freeData = false;
 		unsigned long length = 0;
 
 		int Read();
@@ -43,11 +44,11 @@ namespace rdt
 			currentByte = data[i];
 			value |= (currentByte & SEGMENT_BIT_MASK) << position;
 
-			if ((currentByte & CONTINUE_BIT_MASK) == 0)
-				break;
-
 			i++;
 			position += 7;
+
+			if ((currentByte & CONTINUE_BIT_MASK) == 0)
+				break;
 
 			if (position >= 32)
 				std::cout << "VarInt is too Big" << std::endl;
@@ -97,12 +98,14 @@ namespace rdt
 	void VarInt::Assign(char* ptr)
 	{
 		data = ptr;
+		freeData = false;
 		Read();
 	};
 
 	VarInt::~VarInt()
 	{
-		free(data);
+		if (freeData == true)
+			free(data);
 	};
 
 
@@ -117,7 +120,7 @@ namespace rdt
 		unsigned int dataLength = 0;
 		unsigned int packetDataOffset = 0;
 		char* packetBuffer = nullptr;
-		char* data = nullptr;
+		char* data = nullptr;	//Pointer to the data part of a packet
 
 		void Empty();
 		unsigned int CalcLength();
@@ -264,8 +267,46 @@ namespace rdt
 			free(Signature);
 	}
 
-	struct GameWorldInformation
+	class Property
 	{
+	public:
+		bool isSigned;
+		char* name = nullptr;
+		char* value = nullptr;
+		char* signature = nullptr;
 
+		Property(char* n);
+		~Property();
+	};
+
+	Property::Property(char* startingAddress)
+	{
+		name = (char*)malloc(32767);
+		value = (char*)malloc(32767);
+
+		memcpy(name, startingAddress, 32767);
+		memcpy(value, startingAddress + 32767, 32767);
+		memcpy(&isSigned, startingAddress + 65534, 1);
+
+		if (isSigned == true)
+		{
+			signature = (char*)malloc(32767);
+			memcpy(signature, startingAddress + 65534 + 1, 32767);
+		}
+	}
+
+	Property::~Property()
+	{
+		free(name);
+		free(value);
+
+		if (isSigned == true)
+			free(signature);
+	}
+
+	struct SessionInformation
+	{
+		char username[16];
+		UUID uuid;
 	};
 }

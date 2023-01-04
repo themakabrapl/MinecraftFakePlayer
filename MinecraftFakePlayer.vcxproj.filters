@@ -21,10 +21,13 @@
     <ClInclude Include="Source\Client.h">
       <Filter>Pliki nagłówkowe</Filter>
     </ClInclude>
-    <ClInclude Include="Source\RDatatypes.h">
+    <ClInclude Include="Source\Datatypes.h">
       <Filter>Pliki nagłówkowe</Filter>
     </ClInclude>
-    <ClInclude Include="Source\UFunctions.h">
+    <ClInclude Include="Source\Functions.h">
+      <Filter>Pliki nagłówkowe</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\OFunctions.h">
       <Filter>Pliki nagłówkowe</Filter>
     </ClInclude>
   </ItemGroup>

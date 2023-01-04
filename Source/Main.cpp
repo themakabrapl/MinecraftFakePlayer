@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include <WinSock2.h>
 #include <ws2tcpip.h>
@@ -7,25 +8,12 @@
 
 #include <rpc.h>
 
-#include "zlib/zlib.h"
+#include "zconf.h"
+#include "zlib.h"
 
-#include "UFunctions.h"
-#include "RDatatypes.h"
-
-void respondToPacket(rdt::Packet& rPacket, rdt::GameWorldInformation& GWI, int& SIZE_BEFORE_COMPESSION)
-{
-	if (rPacket.PacketID.Read() == 3)
-	{
-		rdt::VarInt tmp;
-		tmp.Assign(rPacket.data);
-		SIZE_BEFORE_COMPESSION = tmp.Read();
-	}
-
-	if (rPacket.PacketID.Read() == 1)
-	{
-
-	}
-}
+#include "Functions.h"
+#include "OFunctions.h"
+#include "Datatypes.h"
 
 int main(int argc, char** argv)
 {
@@ -186,25 +174,28 @@ int main(int argc, char** argv)
 	{
 		//Variables for Reciveing Packets
 		unsigned int pID = NULL;
+
+		unsigned long sourceLength = 0;
+		unsigned long uncompressedDataSize = 0;
+
 		char* reciveBuffer = nullptr;
 		char* uncompressedDataAddress = nullptr;
 
 		rdt::VarInt uVInt;
 
-		reciveBuffer = (char*)malloc(2097151);
+		reciveBuffer = (char*)malloc(2097152);
 		if (reciveBuffer == nullptr)
 		{
 			std::cout << "Not enough memory to be reciveing a Packets" << std::endl;
 			std::system("pause");
 			return EXIT_FAILURE;
 		}
-		memset(reciveBuffer, 0, 2097151);
+		memset(reciveBuffer, 0, 2097152);
 
 		//Flags used in Communication
 		int SIZE_BEFORE_COMPESSION = -1;
 
-		//
-		rdt::GameWorldInformation GWI;
+		rdt::SessionInformation SI;
 
 		//Loop for Reciveing Packets and responding to Them
 		while (true)
@@ -212,7 +203,7 @@ int main(int argc, char** argv)
 			rdt::Packet rPacket;
 
 			//Recive a Packet/Maybe Packets idk. and check for Errors 
-			byteCount = recv(cSocket, reciveBuffer, 2097151, 0);
+			byteCount = recv(cSocket, reciveBuffer, 2097152, 0);
 			if (byteCount == SOCKET_ERROR)
 			{
 				std::cout << "Recv() Failed: " << WSAGetLastError() << std::endl;
@@ -227,58 +218,24 @@ int main(int argc, char** argv)
 			}
 
 			//If Flag SIZE_BEFORE_COMPESSION > 0 decompress the packet
-			if (SIZE_BEFORE_COMPESSION > 0)
+			[[unlikely]] if (SIZE_BEFORE_COMPESSION < 0)
 			{
-				rPacket.DataLength.Assign(reciveBuffer + rPacket.Length.length);
-				uncompressedDataAddress = (char*)malloc(rPacket.DataLength.Read());
-				if (uncompressedDataAddress == nullptr)
-				{
-					std::cout << "Not enough memory to be decompress a Packet" << std::endl;
-					std::system("pause");
-					return EXIT_FAILURE;
-				}
-
-				char* dataAddress = (rPacket.DataLength.data + rPacket.DataLength.length);
-				unsigned long sourceLength = rPacket.Length.Read() - rPacket.DataLength.length;
-
-				unsigned long uncompressedDataSize = rPacket.DataLength.Read();
-				if (uncompressedDataSize > 0)
-				{
-					int decompression = uncompress2((Bytef*)uncompressedDataAddress, (uLongf*)&uncompressedDataSize, (Bytef*)dataAddress, (uLong*)&sourceLength);
-					if (decompression != Z_OK)
-					{
-						if (decompression == Z_MEM_ERROR)
-						{
-							std::cout << "Couldn't decompress the Packet because there was not enought Memory" << std::endl;
-							std::system("pause");
-							return EXIT_FAILURE;
-						}
-
-						if (decompression == Z_BUF_ERROR)
-						{
-							std::cout << "Couldn't decompress the Packet because there was not enought memory in the Buffer" << std::endl;
-							std::system("pause");
-							return EXIT_FAILURE;
-						}
-
-						if (decompression == Z_DATA_ERROR)
-						{
-							std::cout << "Data of the Packet was corrupted or incomplete" << std::endl;
-							std::system("pause");
-							return EXIT_FAILURE;
-						}
-					}
-				}
-
-				rPacket.PacketID.Assign(uncompressedDataAddress);
-				rPacket.data = (uncompressedDataAddress + rPacket.PacketID.length);
-				respondToPacket(rPacket, GWI, SIZE_BEFORE_COMPESSION);
+				rPacket.PacketID.Assign(reciveBuffer + rPacket.Length.length);
+				rPacket.data = rPacket.PacketID.data + rPacket.PacketID.length;
+				respondToPacket(rPacket, SI, SIZE_BEFORE_COMPESSION);
 			}
 
-			rPacket.PacketID.Assign(rPacket.packetBuffer + rPacket.Length.length);
-			rPacket.data = (uncompressedDataAddress + rPacket.PacketID.length);
-			respondToPacket(rPacket, GWI, SIZE_BEFORE_COMPESSION);
+			rPacket.DataLength.Assign(reciveBuffer + rPacket.Length.length);
+			rPacket.data = rPacket.DataLength.data + rPacket.DataLength.length;
 
+			int res = decompressPacket(rPacket, sourceLength, uncompressedDataSize, uncompressedDataAddress);
+			if (res != 0)
+			{
+				std::cout << "Decompression of a packet failed: " << res << std::endl;
+				return EXIT_FAILURE;
+			}
+
+			respondToPacket(rPacket, SI, SIZE_BEFORE_COMPESSION);
 			memset(reciveBuffer, 0, byteCount);
 		}
 	}

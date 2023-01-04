@@ -1,6 +1,6 @@
 #pragma once
 
-/* This file contains useful Functions */
+/* This file contains Functions */
 
 //New Functions
 int chrlen(const char* array)
